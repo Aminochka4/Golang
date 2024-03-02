@@ -5,6 +5,21 @@ with own questionnaires.
 
 ## API structure
 
+### Endpoints:
+
+### Users
++ ```POST /api/v1/register:``` Register a new user.
++ ```GET /api/v1/users:``` Get all users.
++ ```GET /api/v1/users/{userId}:``` Get a user by ID.
++ ```PUT /api/v1/users/{userId}:``` Update a user by ID.
+
+### Questionnaires
++ ```POST /api/v1/questionnaires:``` Create a new questionnaire.
++ ```GET /api/v1/questionnaires:``` Get all questionnaires.
++ ```GET /api/v1/questionnaires/{questionnairesId}:``` Get a questionnaires by ID.
++ ```PUT /api/v1/questionnaires/{questionnairesId}:``` Update a questionnaire by ID.
++ ```DELETE /api/v1/questionnaires/{questionnairesId}:``` Delete a questionnaire by ID.
+
 ## DB structure
 
 ![img.png](img.png)
