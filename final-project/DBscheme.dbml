@@ -1,15 +1,3 @@
-# Social media as Questionnaires
-
-This is simple app where everyone can create profile
-with own questionnaires.
-
-## API structure
-
-## DB structure
-
-![img.png](img.png)
-
-```
 Table user {
   id bigserial [primary key]
   createdAt timestamp
@@ -31,7 +19,3 @@ Table questionnaire {
 }
 
 Ref: questionnaire.userId < user.id
-```
-
-
-## Installation
