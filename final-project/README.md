@@ -1,7 +1,6 @@
 # Social media as Questionnaires
 
-This is simple app where everyone can create profile
-with own questionnaires.
+This is a simple app where everyone can create profile with their own questionnaires.
 
 ## API structure
 
@@ -16,7 +15,7 @@ with own questionnaires.
 ### Questionnaires
 + ```POST /api/v1/questionnaires:``` Create a new questionnaire.
 + ```GET /api/v1/questionnaires:``` Get all questionnaires.
-+ ```GET /api/v1/questionnaires/{questionnairesId}:``` Get a questionnaires by ID.
++ ```GET /api/v1/questionnaires/{questionnairesId}:``` Get a questionnaire by ID.
 + ```PUT /api/v1/questionnaires/{questionnairesId}:``` Update a questionnaire by ID.
 + ```DELETE /api/v1/questionnaires/{questionnairesId}:``` Delete a questionnaire by ID.
 
