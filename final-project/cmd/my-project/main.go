@@ -55,7 +55,7 @@ func (app *application) run() {
 
 	v1 := r.PathPrefix("/api/v1").Subrouter()
 
-	v1.HandleFunc("/create-questionnaire", app.createQuestionnaireHandler).Methods("POST")
+	v1.HandleFunc("/questionnaire", app.createQuestionnaireHandler).Methods("POST")
 
 	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.getQuestionnaireHandler).Methods("GET")
 
