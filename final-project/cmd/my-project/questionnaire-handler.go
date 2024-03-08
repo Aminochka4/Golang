@@ -29,13 +29,12 @@ func (app *application) createQuestionnaireHandler(w http.ResponseWriter, r *htt
 	var input struct {
 		Topic     string `json:"topic"`
 		Questions string `json:"questions"`
-		UserId    uint   `json:"user_id"`
+		UserId    string `json:"userId"`
 	}
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
 		app.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
-		return
 	}
 
 	questionnaire := &model.Questionnaire{
@@ -91,7 +90,6 @@ func (app *application) updateQuestionnaireHandler(w http.ResponseWriter, r *htt
 	var input struct {
 		Topic     *string `json:"topic"`
 		Questions *string `json:"questions"`
-		UserId    *uint   `json:"user_id"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -108,14 +106,9 @@ func (app *application) updateQuestionnaireHandler(w http.ResponseWriter, r *htt
 		questionnaire.Questions = *input.Questions
 	}
 
-	if input.UserId != nil {
-		questionnaire.UserId = *input.UserId
-	}
-
 	err = app.models.Questionnaires.Update(questionnaire)
 	if err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
-		return
 	}
 
 	app.respondWithJSON(w, http.StatusOK, questionnaire)
@@ -134,7 +127,6 @@ func (app *application) deleteQuestionnaireHandler(w http.ResponseWriter, r *htt
 	err = app.models.Questionnaires.Delete(id)
 	if err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
-		return
 	}
 
 	app.respondWithJSON(w, http.StatusOK, map[string]string{"result": "success"})

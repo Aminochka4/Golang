@@ -29,7 +29,7 @@ func main() {
 	var cfg config
 	flag.StringVar(&cfg.port, "port", ":8081", "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "postgres://codev0:pa55word@localhost/lecture6?sslmode=disable", "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", "postgres://postgres:Idinahui12345@localhost/postgres?sslmode=disable", "PostgreSQL DSN")
 	flag.Parse()
 
 	// Connect to DB
@@ -49,17 +49,21 @@ func main() {
 }
 
 func (app *application) run() {
+	log.Println("Starting API server")
+
 	r := mux.NewRouter()
 
 	v1 := r.PathPrefix("/api/v1").Subrouter()
 
-	v1.HandleFunc("/questionnaires", app.createQuestionnaireHandler).Methods("POST")
+	v1.HandleFunc("/create-questionnaire", app.createQuestionnaireHandler).Methods("POST")
 
-	v1.HandleFunc("/questionnaires/{questionnaireId:[0-9]+}", app.getQuestionnaireHandler).Methods("GET")
+	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.getQuestionnaireHandler).Methods("GET")
 
-	v1.HandleFunc("/questionnaires/{questionnaireId:[0-9]+}", app.updateQuestionnaireHandler).Methods("PUT")
+	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.updateQuestionnaireHandler).Methods("PUT")
 
-	v1.HandleFunc("/questionnaires/{questionnaireId:[0-9]+}", app.deleteQuestionnaireHandler).Methods("DELETE")
+	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.deleteQuestionnaireHandler).Methods("DELETE")
+
+	http.ListenAndServe(":8081", r)
 
 	log.Printf("Starting server on %s\n", app.config.port)
 	err := http.ListenAndServe(app.config.port, r)
