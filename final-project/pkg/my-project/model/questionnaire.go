@@ -8,12 +8,12 @@ import (
 )
 
 type Questionnaire struct {
-	Id        string `json:"id"`
+	Id        int64  `json:"id"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
 	Topic     string `json:"topic"`
 	Questions string `json:"questions"`
-	UserId    string `json:"userId"`
+	UserId    int64  `json:"userId"`
 }
 
 type QuestionnaireModel struct {

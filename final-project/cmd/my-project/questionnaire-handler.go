@@ -29,7 +29,7 @@ func (app *application) createQuestionnaireHandler(w http.ResponseWriter, r *htt
 	var input struct {
 		Topic     string `json:"topic"`
 		Questions string `json:"questions"`
-		UserId    string `json:"userId"`
+		UserId    int64  `json:"userId"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -130,16 +130,4 @@ func (app *application) deleteQuestionnaireHandler(w http.ResponseWriter, r *htt
 	}
 
 	app.respondWithJSON(w, http.StatusOK, map[string]string{"result": "success"})
-}
-
-func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst interface{}) error {
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	err := dec.Decode(dst)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

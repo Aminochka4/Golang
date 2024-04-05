@@ -1,3 +1,6 @@
+# Student
+22B030305 Amanzholova Amina
+
 # Social media as Questionnaires
 
 This is a simple app where everyone can create profile with their own questionnaires.
