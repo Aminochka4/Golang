@@ -57,13 +57,13 @@ func (app *application) run() {
 
 	//user
 
-	v1.HandleFunc("/usersfilter", app.getUsersByNameHandler).Methods("GET")
+	v1.HandleFunc("/users/filter", app.getUsersByNameHandler).Methods("GET")
 
-	v1.HandleFunc("/usersorting", app.getUsersBySurnameHandler).Methods("GET")
+	v1.HandleFunc("/users/sorted", app.getUsersBySurnameHandler).Methods("GET")
 
-	v1.HandleFunc("/userspag", app.getUsersWithPaginationHandler).Methods("GET")
+	v1.HandleFunc("/users/limit", app.getUsersWithPaginationHandler).Methods("GET")
 
-	v1.HandleFunc("/register", app.createUserHandler).Methods("POST")
+	v1.HandleFunc("users/register", app.registerUserHandler).Methods("POST")
 
 	v1.HandleFunc("/users", app.getAllUsersHandler).Methods("GET")
 

@@ -9,6 +9,8 @@ import (
 type Models struct {
 	Users          UserModel
 	Questionnaires QuestionnaireModel
+	Tokens         TokenModel
+	Permissions    PermissionModel
 }
 
 func NewModels(db *sql.DB) Models {
@@ -21,6 +23,16 @@ func NewModels(db *sql.DB) Models {
 			ErrorLog: errorLog,
 		},
 		Questionnaires: QuestionnaireModel{
+			DB:       db,
+			InfoLog:  infoLog,
+			ErrorLog: errorLog,
+		},
+		Tokens: TokenModel{
+			DB:       db,
+			InfoLog:  infoLog,
+			ErrorLog: errorLog,
+		},
+		Permissions: PermissionModel{
 			DB:       db,
 			InfoLog:  infoLog,
 			ErrorLog: errorLog,

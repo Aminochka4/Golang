@@ -9,10 +9,8 @@ import (
 	"github.com/lib/pq"
 )
 
-// Permissions holds the permission codes for a single user.
 type Permissions []string
 
-// Include checks whether the Permissions slice contains a specific permission code.
 func (p Permissions) Include(code string) bool {
 	for i := range p {
 		if code == p[i] {
@@ -29,7 +27,6 @@ type PermissionModel struct {
 	ErrorLog *log.Logger
 }
 
-// GetAllForUser returns all permission codes for a specific user in a Permissions slice.
 func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 	query := `
 		SELECT permissions.code
@@ -72,7 +69,6 @@ func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 	return permissions, nil
 }
 
-// AddForUser adds the provided codes for a specific user.
 func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
 	query := `
 		INSERT INTO users_permissions

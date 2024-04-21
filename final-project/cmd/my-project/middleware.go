@@ -32,7 +32,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		user, err := app.models.Users.GetForToken(model.ScopeAuthentication, token)
 		if err != nil {
-			app.respondWithJson(w, http.StatusNotFound, "404 Invalid token")
+			app.respondWithError(w, http.StatusNotFound, "404 Invalid token")
 			return
 		}
 
@@ -54,7 +54,7 @@ func (app *application) requireActivatedUser(next http.HandlerFunc) http.Handler
 		user := app.contextGetUser(r)
 
 		if !user.Activated {
-			app.respondWithJSON(w, http.StatusInternalServerError, "500 Invalid activation")
+			app.respondWithError(w, http.StatusInternalServerError, "500 Invalid activation")
 			return
 		}
 
