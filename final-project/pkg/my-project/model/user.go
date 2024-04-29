@@ -2,18 +2,23 @@ package model
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"github.com/Aminochka4/Golang/final-project/pkg/my-project/validator"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"time"
 )
 
+var (
+	ErrDuplicateEmail = errors.New("duplicate email")
+)
+
+var AnonymousUser = &User{}
+
 type User struct {
 	Id        int64     `json:"id"`
 	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
 	Name      string    `json:"name"`
 	Surname   string    `json:"surname"`
 	Username  string    `json:"username"`
@@ -22,6 +27,11 @@ type User struct {
 	Activated bool      `json:"activated"`
 	Version   int       `json:"-"`
 }
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
+}
+
 type UserModel struct {
 	DB       *sql.DB
 	InfoLog  *log.Logger
@@ -46,7 +56,12 @@ func (p *password) Set(plaintextPassword string) error {
 func (p *password) Matches(plaintextPassword string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plaintextPassword))
 	if err != nil {
-		return false, err
+		switch {
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+			return false, nil
+		default:
+			return false, err
+		}
 	}
 
 	return true, nil
@@ -56,18 +71,29 @@ func (u UserModel) Insert(user *User) error {
 	query := `
 			INSERT INTO users (name, surname, username, email, password, activated)
 			VALUES($1, $2, $3, $4, $5, $6)
-			RETURNING id, createdAt, updatedAt, version
+			RETURNING id, createdAt, version
 			`
 	args := []interface{}{user.Name, user.Surname, user.Username, user.Email, user.Password.hash, user.Activated}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return u.DB.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt, &user.Version)
+	pqErr := `pq: duplicate key value violates unique constraint "users_email_key"`
+	err := u.DB.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.CreatedAt, &user.Version)
+	if err != nil {
+		switch {
+		case err.Error() == pqErr:
+			return ErrDuplicateEmail
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (u UserModel) GetAll() ([]*User, error) {
 	query := `
-		SELECT id, createdAt, updatedAt, name, surname, username, email, password, activated, version
+		SELECT id, createdAt, name, surname, username, email, password, activated, version
 		FROM users
 		ORDER BY id
 	`
@@ -81,8 +107,8 @@ func (u UserModel) GetAll() ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var user User
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt,
-			&user.Name, &user.Surname, &user.Username, &user.Email, &user.Password.hash, &user.Activated, &user.Version)
+		err := rows.Scan(&user.Id, &user.CreatedAt, &user.Name, &user.Surname,
+			&user.Username, &user.Email, &user.Password.hash, &user.Activated, &user.Version)
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +124,7 @@ func (u UserModel) GetAll() ([]*User, error) {
 
 func (u UserModel) GetById(id int) (*User, error) {
 	query := `
-		SELECT id, createdAt, updatedAt, name, surname, username, email, password, activated, version
+		SELECT id, createdAt, name, surname, username, email, password, activated, version
 		FROM users
 		WHERE id = $1
 		`
@@ -107,11 +133,16 @@ func (u UserModel) GetById(id int) (*User, error) {
 	defer cancel()
 
 	row := u.DB.QueryRowContext(ctx, query, id)
-	err := row.Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt,
+	err := row.Scan(&user.Id, &user.CreatedAt,
 		&user.Name, &user.Surname, &user.Username, &user.Email, &user.Password.hash, &user.Activated, &user.Version)
 
 	if err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
 	}
 
 	return &user, nil
@@ -129,7 +160,19 @@ func (u UserModel) Update(user *User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return u.DB.QueryRowContext(ctx, query, args...).Scan(&user.UpdatedAt)
+	err := u.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
+	if err != nil {
+		switch {
+		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+			return ErrDuplicateEmail
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (u UserModel) Delete(id int) error {
@@ -148,21 +191,20 @@ func (u UserModel) Delete(id int) error {
 }
 
 func (u UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
-	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
 
 	query := `
 		SELECT 
-			user.id, user.createdAt, user.updatedAt, user.name, user.surname, user.username, 
-			user.email, user.password, user.activated, user.version
+			users.id, users.createdAt, users.name, users.surname, users.username, 
+			users.email, users.password, users.activated, users.version
 		FROM	users
         INNER JOIN tokens
 			ON users.id = tokens.user_id
-        WHERE tokens.hash = $1 
+        WHERE tokens.plaintext = $1 
 			AND tokens.scope = $2
 			AND tokens.expiry > $3
 		`
 
-	args := []interface{}{tokenHash[:], tokenScope, time.Now()}
+	args := []interface{}{tokenPlaintext, tokenScope, time.Now()}
 
 	var user User
 
@@ -172,7 +214,6 @@ func (u UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 	err := u.DB.QueryRowContext(ctx, query, args...).Scan(
 		&user.Id,
 		&user.CreatedAt,
-		&user.UpdatedAt,
 		&user.Name,
 		&user.Surname,
 		&user.Username,
@@ -182,15 +223,20 @@ func (u UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 		&user.Version,
 	)
 	if err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
 	}
 
 	return &user, nil
 }
 
-func ValidateEmail(v *validator.Validator, email string) {
-	v.Check(email != "", "email", "must be provided")
-	v.Check(validator.Matches(email, validator.EmailRX), "email", "must be valid email address")
+func ValidateUsername(v *validator.Validator, username string) {
+	v.Check(username != "", "username", "must be provided")
+	v.Check(validator.Matches(username, validator.UsernameRX), "username", "must be valid username format")
 }
 
 func ValidatePasswordPlaintext(v *validator.Validator, password string) {
@@ -203,7 +249,7 @@ func ValidateUser(v *validator.Validator, user *User) {
 	v.Check(user.Name != "", "name", "must be provided")
 	v.Check(len(user.Name) <= 500, "name", "must not be more than 500 bytes long")
 
-	ValidateEmail(v, user.Email)
+	ValidateUsername(v, user.Username)
 
 	if user.Password.plaintext != nil {
 		ValidatePasswordPlaintext(v, *user.Password.plaintext)
@@ -217,42 +263,44 @@ func ValidateUser(v *validator.Validator, user *User) {
 
 //tsis3
 
-func (u *UserModel) GetByName(name string) ([]*User, error) {
+func (u *UserModel) GetByUsername(username string) (*User, error) {
 	query := `
-        SELECT id, createdAt, updatedAt, name, surname, username, email, password, activated, version
+        SELECT id, createdAt, name, surname, username, email, password, activated, version
         FROM users
-        WHERE name = $1
+        WHERE username = $1
     `
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	var user User
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := u.DB.QueryContext(ctx, query, name)
+	err := u.DB.QueryRowContext(ctx, query, username).Scan(
+		&user.Id,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Surname,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Version,
+	)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		user := &User{}
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt, &user.Name, &user.Surname,
-			&user.Username, &user.Email, &user.Password, &user.Activated, &user.Version)
-		if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
 			return nil, err
 		}
-		users = append(users, user)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil
+	return &user, nil
 }
 
 func (u *UserModel) GetBySurname() ([]*User, error) {
 	query := `
-        SELECT id, createdAt, updatedAt, name, surname, username, email, password, activated, version
+        SELECT id, createdAt, name, surname, username, email, password, activated, version
         FROM users
         ORDER BY surname
     `
@@ -268,7 +316,7 @@ func (u *UserModel) GetBySurname() ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		user := &User{}
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt, &user.Name, &user.Surname,
+		err := rows.Scan(&user.Id, &user.CreatedAt, &user.Name, &user.Surname,
 			&user.Username, &user.Email, &user.Password, &user.Activated, &user.Version)
 		if err != nil {
 			return nil, err
@@ -285,7 +333,7 @@ func (u *UserModel) GetBySurname() ([]*User, error) {
 
 func (u *UserModel) GetUsersWithPagination(limit, offset int) ([]*User, error) {
 	query := `
-        SELECT id, createdAt, updatedAt, name, surname, username, email, password, activated, version
+        SELECT id, createdAt, name, surname, username, email, password, activated, version
         FROM users
         ORDER BY id
         LIMIT $1 OFFSET $2
@@ -302,7 +350,7 @@ func (u *UserModel) GetUsersWithPagination(limit, offset int) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		user := &User{}
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.UpdatedAt, &user.Name, &user.Surname,
+		err := rows.Scan(&user.Id, &user.CreatedAt, &user.Name, &user.Surname,
 			&user.Username, &user.Email, &user.Password, &user.Activated, &user.Version)
 		if err != nil {
 			return nil, err

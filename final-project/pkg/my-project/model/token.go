@@ -3,9 +3,9 @@ package model
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base32"
+	"errors"
 	"github.com/Aminochka4/Golang/final-project/pkg/my-project/validator"
 	"log"
 	"time"
@@ -19,7 +19,6 @@ const (
 type (
 	Token struct {
 		Plaintext string    `json:"token"`
-		Hash      []byte    `json:"-"`
 		UserID    int64     `json:"-"`
 		Expiry    time.Time `json:"expiry"`
 		Scope     string    `json:"-"`
@@ -31,6 +30,34 @@ type (
 		ErrorLog *log.Logger
 	}
 )
+
+func (m TokenModel) Parse(tokenString string) (*Token, error) {
+	// Напишите SQL-запрос для поиска токена по его строковому представлению
+	query := `
+		SELECT plaintext, user_id, expiry, scope
+		FROM tokens
+		WHERE plaintext = $1
+	`
+
+	// Выполните SQL-запрос и получите результат
+	var token Token
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := m.DB.QueryRowContext(ctx, query, tokenString).Scan(&token.Plaintext, &token.UserID, &token.Expiry, &token.Scope)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	// Установите строковое представление токена
+	if token.Plaintext == tokenString {
+		return &token, nil
+	}
+
+	return nil, ErrRecordNotFound
+}
 
 func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
 	token, err := generateToken(userID, ttl, scope)
@@ -45,11 +72,11 @@ func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, 
 
 func (m TokenModel) Insert(token *Token) error {
 	query := `
-		INSERT INTO tokens (hash, user_id, expiry, scope)
+		INSERT INTO tokens (plaintext, user_id, expiry, scope)
 		VALUES ($1, $2, $3, $4)
 		`
 
-	args := []interface{}{token.Hash, token.UserID, token.Expiry, token.Scope}
+	args := []interface{}{token.Plaintext, token.UserID, token.Expiry, token.Scope}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -86,9 +113,6 @@ func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error
 	}
 
 	token.Plaintext = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(randomBytes)
-
-	hash := sha256.Sum256([]byte(token.Plaintext))
-	token.Hash = hash[:]
 
 	return token, nil
 }

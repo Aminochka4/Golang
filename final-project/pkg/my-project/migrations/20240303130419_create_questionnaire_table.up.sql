@@ -6,4 +6,6 @@ CREATE TABLE IF NOT EXISTS questionnaire
     topic     text,
     questions text,
     userId    bigserial REFERENCES users (id)
-); 
+);
+
+SELECT * FROM questionnaire;

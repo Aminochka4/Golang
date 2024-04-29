@@ -3,18 +3,24 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"log"
-	"net/http"
+	"github.com/Aminochka4/Golang/final-project/pkg/jsonlog"
+	"github.com/Aminochka4/Golang/final-project/pkg/my-project/model/filler"
+	"github.com/Aminochka4/Golang/final-project/pkg/vcs"
+	"os"
+	"sync"
 
 	"github.com/Aminochka4/Golang/final-project/pkg/my-project/model"
-	"github.com/gorilla/mux"
-
 	_ "github.com/lib/pq"
 )
 
+var (
+	version = vcs.Version()
+)
+
 type config struct {
-	port string
+	port int
 	env  string
+	fill bool
 	db   struct {
 		dsn string
 	}
@@ -23,76 +29,59 @@ type config struct {
 type application struct {
 	config config
 	models model.Models
+	logger *jsonlog.Logger
+	wg     sync.WaitGroup
 }
 
 func main() {
 	var cfg config
-	flag.StringVar(&cfg.port, "port", ":8081", "API server port")
+	flag.BoolVar(&cfg.fill, "fill", false, "Fill db with dummy data")
+	flag.IntVar(&cfg.port, "port", 8081, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "postgres://postgres:Idinahui12345@localhost/postgres?sslmode=disable", "PostgreSQL DSN")
 	flag.Parse()
 
+	//Init logger
+	logger := jsonlog.NewLogger(os.Stdout, jsonlog.LevelInfo)
+
 	// Connect to DB
 	db, err := openDB(cfg)
 	if err != nil {
-		log.Fatal(err)
+		logger.PrintError(err, nil)
 		return
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.PrintFatal(err, nil)
+		}
+	}()
 
 	app := &application{
 		config: cfg,
 		models: model.NewModels(db),
+		logger: logger,
 	}
 
-	app.run()
-}
+	if cfg.fill {
+		err = filler.PopulateDatabase(app.models)
+		if err != nil {
+			logger.PrintFatal(err, nil)
+			return
+		}
+	}
 
-func (app *application) run() {
-	log.Println("Starting API server")
-
-	r := mux.NewRouter()
-
-	v1 := r.PathPrefix("/api/v1").Subrouter()
-
-	//user
-
-	v1.HandleFunc("/users/filter", app.getUsersByNameHandler).Methods("GET")
-
-	v1.HandleFunc("/users/sorted", app.getUsersBySurnameHandler).Methods("GET")
-
-	v1.HandleFunc("/users/limit", app.getUsersWithPaginationHandler).Methods("GET")
-
-	v1.HandleFunc("users/register", app.registerUserHandler).Methods("POST")
-
-	v1.HandleFunc("/users", app.getAllUsersHandler).Methods("GET")
-
-	v1.HandleFunc("/users/{userId:[0-9]+}", app.getUserByIdHandler).Methods("GET")
-
-	v1.HandleFunc("/users/{userId:[0-9]+}", app.updateUserHandler).Methods("PUT")
-
-	v1.HandleFunc("/users/{userId:[0-9]+}", app.deleteUserHandler).Methods("DELETE")
-
-	//questionnaire
-
-	v1.HandleFunc("/questionnaire", app.createQuestionnaireHandler).Methods("POST")
-
-	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.getQuestionnaireHandler).Methods("GET")
-
-	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.updateQuestionnaireHandler).Methods("PUT")
-
-	v1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.deleteQuestionnaireHandler).Methods("DELETE")
-
-	http.ListenAndServe(":8081", r)
-
-	log.Printf("Starting server on %s\n", app.config.port)
-	err := http.ListenAndServe(app.config.port, r)
-	log.Fatal(err)
+	if err := app.serve(); err != nil {
+		logger.PrintFatal(err, nil)
+	}
 }
 
 func openDB(cfg config) (*sql.DB, error) {
 	// Use sql.Open() to create an empty connection pool, using the DSN from the config // struct.
 	db, err := sql.Open("postgres", cfg.db.dsn)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping()
 	if err != nil {
 		return nil, err
 	}

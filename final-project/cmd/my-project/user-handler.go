@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/Aminochka4/Golang/final-project/pkg/my-project/model"
 	"github.com/Aminochka4/Golang/final-project/pkg/my-project/validator"
 	"github.com/gorilla/mux"
@@ -24,6 +25,7 @@ func (app *application) respondWithJson(w http.ResponseWriter, code int, payload
 }
 
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+
 	var input struct {
 		Name     string `json:"name"`
 		Surname  string `json:"surname"`
@@ -34,7 +36,8 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		app.badRequestResponse(w, r, err)
+		return
 	}
 
 	user := &model.User{
@@ -46,32 +49,42 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 	err = user.Password.Set(input.Password)
 	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	v := validator.New()
 
 	if model.ValidateUser(v, user); !v.Valid() {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	err = app.models.Users.Insert(user)
 	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		switch {
+		// If we get an ErrDuplicateEmail error, use the v.AddError() method to manually add
+		// a message to the validator instance, and then call our failedValidationResponse
+		// helper().
+		case errors.Is(err, model.ErrDuplicateEmail):
+			v.AddError("email", "a user with this email address already exists")
+
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
 	err = app.models.Permissions.AddForUser(user.Id, "questionnaire:done")
 	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, model.ScopeActivation)
 	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -123,7 +136,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Internal Server Error")
+		app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -131,7 +144,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	v := validator.New()
 
 	if model.ValidateTokenPlaintext(v, input.TokenPlaintext); !v.Valid() {
-		app.respondWithError(w, http.StatusBadRequest, "400 Invalid token plaintext")
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
@@ -140,7 +153,13 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	// is not valid.
 	user, err := app.models.Users.GetForToken(model.ScopeActivation, input.TokenPlaintext)
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "400 Something wrong")
+		switch {
+		case errors.Is(err, model.ErrRecordNotFound):
+			v.AddError("token", "invalid or expired activation token")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -148,44 +167,34 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 
 	err = app.models.Users.Update(user)
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "400 Something wrong")
+		switch {
+		case errors.Is(err, model.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
 	err = app.models.Tokens.DeleteAllForUser(model.ScopeActivation, user.Id)
 	if err != nil {
-		app.respondWithError(w, http.StatusBadRequest, "400 Something wrong")
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
-	if err != nil {
-		app.respondWithError(w, http.StatusInternalServerError, "500 Status Internal Server Error")
-	}
-}
-
-func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst interface{}) error {
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	err := dec.Decode(dst)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 }
 
 // tsis3
 func (app *application) getUsersByNameHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
+	username := r.URL.Query().Get("username")
 
-	if name == "" {
-		app.respondWithError(w, http.StatusBadRequest, "Missing name parameter")
+	if username == "" {
+		app.respondWithError(w, http.StatusBadRequest, "Missing username parameter")
 		return
 	}
 
-	users, err := app.models.Users.GetByName(name)
+	users, err := app.models.Users.GetByUsername(username)
 	if err != nil {
 		app.respondWithError(w, http.StatusInternalServerError, "Failed to fetch users")
 		return

@@ -3,9 +3,9 @@ package validator
 import "regexp"
 
 var (
-	// EmailRX is a regex for sanity checking the format of email addresses.
+	// EmailRX is a regex for sanity checking the format of username addresses.
 	// The regex pattern used is taken from  https://html.spec.whatwg.org/#valid-e-mail-address.
-	EmailRX = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+	UsernameRX = regexp.MustCompile("^[a-zA-Z0-9_-]{3,16}$")
 )
 
 // Validator struct type contains a map of validation errors.
