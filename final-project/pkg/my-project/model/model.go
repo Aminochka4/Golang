@@ -20,6 +20,7 @@ type Models struct {
 	Questionnaires QuestionnaireModel
 	Tokens         TokenModel
 	Permissions    PermissionModel
+	Answer         AnswerModel
 }
 
 func NewModels(db *sql.DB) Models {
@@ -42,6 +43,11 @@ func NewModels(db *sql.DB) Models {
 			ErrorLog: errorLog,
 		},
 		Permissions: PermissionModel{
+			DB:       db,
+			InfoLog:  infoLog,
+			ErrorLog: errorLog,
+		},
+		Answer: AnswerModel{
 			DB:       db,
 			InfoLog:  infoLog,
 			ErrorLog: errorLog,

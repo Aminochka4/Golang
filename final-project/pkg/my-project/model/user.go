@@ -261,8 +261,6 @@ func ValidateUser(v *validator.Validator, user *User) {
 	}
 }
 
-//tsis3
-
 func (u *UserModel) GetByUsername(username string) (*User, error) {
 	query := `
         SELECT id, createdAt, name, surname, username, email, password, activated, version
@@ -296,71 +294,4 @@ func (u *UserModel) GetByUsername(username string) (*User, error) {
 	}
 
 	return &user, nil
-}
-
-func (u *UserModel) GetBySurname() ([]*User, error) {
-	query := `
-        SELECT id, createdAt, name, surname, username, email, password, activated, version
-        FROM users
-        ORDER BY surname
-    `
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	rows, err := u.DB.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		user := &User{}
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.Name, &user.Surname,
-			&user.Username, &user.Email, &user.Password, &user.Activated, &user.Version)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil
-}
-
-func (u *UserModel) GetUsersWithPagination(limit, offset int) ([]*User, error) {
-	query := `
-        SELECT id, createdAt, name, surname, username, email, password, activated, version
-        FROM users
-        ORDER BY id
-        LIMIT $1 OFFSET $2
-    `
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	rows, err := u.DB.QueryContext(ctx, query, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		user := &User{}
-		err := rows.Scan(&user.Id, &user.CreatedAt, &user.Name, &user.Surname,
-			&user.Username, &user.Email, &user.Password, &user.Activated, &user.Version)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil
 }

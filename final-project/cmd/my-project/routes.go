@@ -25,12 +25,6 @@ func (app *application) routes() http.Handler {
 
 	user1 := r.PathPrefix("/api/v1").Subrouter()
 
-	//user1.HandleFunc("/users/filter", app.getUsersByNameHandler).Methods("GET")
-	//
-	//user1.HandleFunc("/users/sorted", app.getUsersBySurnameHandler).Methods("GET")
-	//
-	//user1.HandleFunc("/users/limit", app.getUsersWithPaginationHandler).Methods("GET")
-
 	user1.HandleFunc("/users/register", app.registerUserHandler).Methods("POST")
 
 	user1.HandleFunc("/users/activated", app.activateUserHandler).Methods("PUT")
@@ -47,11 +41,29 @@ func (app *application) routes() http.Handler {
 
 	questionnaire1.HandleFunc("/questionnaire", app.createQuestionnaireHandler).Methods("POST")
 
+	questionnaire1.HandleFunc("/questionnaire", app.getAllQuestionnairesHandler).Methods("GET")
+
 	questionnaire1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.getQuestionnaireHandler).Methods("GET")
 
 	questionnaire1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.updateQuestionnaireHandler).Methods("PUT")
 
 	questionnaire1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}", app.deleteQuestionnaireHandler).Methods("DELETE")
+
+	//answer
+
+	answer1 := r.PathPrefix("/api/v1").Subrouter()
+
+	answer1.HandleFunc("/answer", app.createAnswerHandler).Methods("POST")
+
+	answer1.HandleFunc("/answer", app.getAllAnswersHandler).Methods("GET")
+
+	answer1.HandleFunc("/answer/{answerId:[0-9]+}", app.getAnswerHandler).Methods("GET")
+
+	answer1.HandleFunc("/answer/{answerId:[0-9]+}", app.updateAnswerHandler).Methods("PUT")
+
+	answer1.HandleFunc("/answer/{answerId:[0-9]+}", app.deleteAnswerHandler).Methods("DELETE")
+
+	answer1.HandleFunc("/questionnaire/{questionnaireId:[0-9]+}/answer", app.getAnswerByQuestionnaireHandler).Methods("GET")
 
 	return app.authenticate(r)
 }

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS questionnaire
     updatedAt timestamp(0) with time zone NOT NULL DEFAULT NOW(),
     topic     text,
     questions text,
-    userId    bigserial REFERENCES users (id)
+    userId    bigserial REFERENCES users (id) ON DELETE CASCADE
 );
 
 SELECT * FROM questionnaire;

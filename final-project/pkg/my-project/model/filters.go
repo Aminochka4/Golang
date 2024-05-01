@@ -58,14 +58,11 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 // leading hyphen character (if one exists).
 func (f Filters) sortColumn() string {
 	for _, safeValue := range f.SortSafeList {
-		if f.Sort == safeValue {
+		if strings.TrimPrefix(f.Sort, "-") == safeValue {
 			return strings.TrimPrefix(f.Sort, "-")
 		}
 	}
 
-	// The panic below should technically not happen because the Sort value should have already
-	// been checked when calling the ValidateFilters helper function. However, this is a sensible
-	// failsafe to help stop a SQL injection attach from occurring.
 	panic("unsafe sort parameter:" + f.Sort)
 }
 

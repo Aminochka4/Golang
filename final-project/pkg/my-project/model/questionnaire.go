@@ -24,69 +24,43 @@ type QuestionnaireModel struct {
 	ErrorLog *log.Logger
 }
 
-func (q QuestionnaireModel) GetAll(title string, from, to int, filters Filters) ([]*Questionnaire, Metadata, error) {
-
-	// Retrieve all menu items from the database.
-	query := fmt.Sprintf(
-		`
-		SELECT count(*) OVER(), id, createdAt, updatedAt, topic, questions, userId
+func (q QuestionnaireModel) GetAll(topic string, filters Filters) ([]*Questionnaire, error) {
+	// Формируем базовый запрос SQL
+	query := `
+		SELECT id, createdAt, updatedAt, topic, questions, userId
 		FROM questionnaire
-		WHERE (LOWER(topic) = LOWER($1) OR $1 = '')
-		ORDER BY %s %s, id ASC
-		LIMIT $4 OFFSET $5
-		`,
-		filters.sortColumn(), filters.sortDirection())
+		WHERE ($1 = '' OR LOWER(topic) = LOWER($1))
+	`
 
-	// Create a context with a 3-second timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	// Organize our four placeholder parameter values in a slice.
-	args := []interface{}{title, from, to, filters.limit(), filters.offset()}
-
-	// log.Println(query, title, from, to, filters.limit(), filters.offset())
-	// Use QueryContext to execute the query. This returns a sql.Rows result set containing
-	// the result.
-	rows, err := q.DB.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, Metadata{}, err
+	// Добавляем сортировку в запрос, если указано значение Sort
+	if filters.Sort != "" {
+		query += " ORDER BY " + filters.sortColumn() + " " + filters.sortDirection()
 	}
 
-	// Importantly, defer a call to rows.Close() to ensure that the result set is closed
-	// before GetAll returns.
-	defer func() {
-		if err := rows.Close(); err != nil {
-			q.ErrorLog.Println(err)
-		}
-	}()
+	// Добавляем параметры пагинации в запрос
+	query += " LIMIT $2 OFFSET $3"
 
-	// Declare a totalRecords variable
-	totalRecords := 0
+	rows, err := q.DB.Query(query, topic, filters.PageSize, (filters.Page-1)*filters.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
 	var questionnaires []*Questionnaire
 	for rows.Next() {
 		var questionnaire Questionnaire
-		err := rows.Scan(&totalRecords, &questionnaire.Id, &questionnaire.CreatedAt, &questionnaire.UpdatedAt, &questionnaire.Topic, &questionnaire.Questions, &questionnaire.UserId)
+		err := rows.Scan(&questionnaire.Id, &questionnaire.CreatedAt, &questionnaire.UpdatedAt, &questionnaire.Topic, &questionnaire.Questions, &questionnaire.UserId)
 		if err != nil {
-			return nil, Metadata{}, err
+			return nil, err
 		}
-
-		// Add the Movie struct to the slice
 		questionnaires = append(questionnaires, &questionnaire)
 	}
 
-	// When the rows.Next() loop has finished, call rows.Err() to retrieve any error
-	// that was encountered during the iteration.
-	if err = rows.Err(); err != nil {
-		return nil, Metadata{}, err
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	// Generate a Metadata struct, passing in the total record count and pagination parameters
-	// from the client.
-	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
-
-	// If everything went OK, then return the slice of the movies and metadata.
-	return questionnaires, metadata, nil
+	return questionnaires, nil
 }
 
 func (q QuestionnaireModel) Insert(questionnaire *Questionnaire) error {
@@ -158,7 +132,7 @@ func (q QuestionnaireModel) Delete(id int) error {
 	return err
 }
 
-func ValidateMenu(v *validator.Validator, questionnaire *Questionnaire) {
+func ValidateQuestionnaire(v *validator.Validator, questionnaire *Questionnaire) {
 	// Check if the title field is empty.
 	v.Check(questionnaire.Topic != "", "topic", "must be provided")
 	// Check if the title field is not more than 100 characters.
