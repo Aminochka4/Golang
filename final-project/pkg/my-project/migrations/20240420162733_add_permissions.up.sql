@@ -14,3 +14,6 @@ CREATE TABLE IF NOT EXISTS users_permissions
 INSERT INTO permissions (code)
 VALUES ('questionnaire:read'),
        ('questionnaire:write');
+
+SELECT * FROM permissions;
+SELECT * FROM users_permissions;

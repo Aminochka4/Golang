@@ -54,6 +54,7 @@ Table questionnaire {
   userId bigserial
 }
 
+//one-to-many
 Table answer{
   id biserial [pk]
   createdAt timestamp
@@ -65,6 +66,3 @@ Table answer{
 
 Ref: questionnaire.userId < user.id
 ```
-
-
-## Installation
