@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 
@@ -43,6 +44,10 @@ type application struct {
 
 func main() {
 	fs := flag.NewFlagSet("demo-app", flag.ContinueOnError)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "It is works")
+	})
 
 	var (
 		cfg        config
